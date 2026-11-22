@@ -1,0 +1,26 @@
+%% ============================================================
+%% Network Topology — nexora-vpc 10.20.0.0/16
+%% Project : Enterprise Systems Administration Lab (ESAL)
+%% Version : 1.0.0  |  Status: DRAFT / PROPOSED  |  NOT DEPLOYED
+%% Documented in: docs/architecture/network-topology.md
+%% Render: npx -p @mermaid-js/mermaid-cli mmdc -i <file>.mmd -o <file>.svg
+%% ============================================================
+flowchart TB
+    INET(("Internet"))
+    subgraph VPC["nexora-vpc — 10.20.0.0/16 (VPC resolver 10.20.0.2)"]
+        IGW["nexora-igw<br/>Internet Gateway"]
+        RT["nexora-public-rt<br/>10.20.0.0/16 → local<br/>0.0.0.0/0 → nexora-igw"]
+        subgraph AZA["Availability Zone us-east-1a (proposed)"]
+            subgraph PUB["nexora-public-subnet-a — 10.20.1.0/24<br/>auto-assign public IPv4: enabled"]
+                DC["NX-DC01<br/>proposed 10.20.1.10<br/>nexora-dc-sg"]
+                LNX["NX-LNX01<br/>proposed 10.20.1.20<br/>nexora-lnx-sg"]
+            end
+            subgraph PRIV["nexora-private-subnet-a — 10.20.2.0/24"]
+                RES["RESERVED — NOT DEPLOYED<br/>no route table, no instances"]
+            end
+        end
+    end
+    INET <-->|"outbound-initiated traffic only<br/>no inbound admin ports"| IGW
+    IGW --- RT
+    RT --- PUB
+    LNX -->|"AD services (planned, SG-to-SG)"| DC

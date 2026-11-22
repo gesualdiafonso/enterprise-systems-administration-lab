@@ -1,0 +1,34 @@
+%% ============================================================
+%% Active Directory OU Structure — nexora.local (OUs are containers, not security groups)
+%% Project : Enterprise Systems Administration Lab (ESAL)
+%% Version : 1.0.0  |  Status: DRAFT / PROPOSED  |  NOT DEPLOYED
+%% Documented in: docs/networking/domain-structure.md
+%% Render: npx -p @mermaid-js/mermaid-cli mmdc -i <file>.mmd -o <file>.svg
+%% ============================================================
+flowchart TB
+    ROOT["Domain nexora.local<br/>Nexora Technologies"]
+    DCOU["OU=Domain Controllers<br/>(built-in — NX-DC01 stays here)"]
+    BUILTIN["CN=Users / CN=Computers<br/>(default containers — not used for new objects)"]
+    NEX["OU=Nexora"]
+    MGT["OU=Management"]
+    ADM["OU=Administration"]
+    IT["OU=IT"]
+    FIN["OU=Finance"]
+    HR["OU=Human Resources"]
+    OPS["OU=Operations"]
+    SVC["OU=Service Accounts"]
+    GRP["OU=Groups<br/>(contains security GROUP objects)"]
+    SRV["OU=Servers<br/>(member servers, e.g. future NX-LNX01 join)"]
+
+    ROOT --> DCOU
+    ROOT --> BUILTIN
+    ROOT --> NEX
+    NEX --> MGT
+    NEX --> ADM
+    NEX --> IT
+    NEX --> FIN
+    NEX --> HR
+    NEX --> OPS
+    NEX --> SVC
+    NEX --> GRP
+    NEX --> SRV

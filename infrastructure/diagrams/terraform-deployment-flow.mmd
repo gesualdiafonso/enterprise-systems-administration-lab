@@ -1,0 +1,13 @@
+%% ============================================================
+%% Terraform Deployment Flow — bootstrap, S3 backend, native locking
+%% Project : Enterprise Systems Administration Lab (ESAL)
+%% Version : 1.0.0  |  Status: DRAFT / PROPOSED  |  NOT DEPLOYED
+%% Documented in: docs/cloud/terraform-state.md
+%% Render: npx -p @mermaid-js/mermaid-cli mmdc -i <file>.mmd -o <file>.svg
+%% ============================================================
+flowchart TB
+    A["1. Bootstrap config<br/>infrastructure/terraform/bootstrap/<br/>LOCAL state"] --> B["2. terraform apply<br/>creates S3 bucket:<br/>versioning, encryption,<br/>public access block, TLS policy"]
+    B --> C["3. Main config backend.tf<br/>backend s3 + use_lockfile = true"]
+    C --> D["4. terraform init<br/>(or init -migrate-state)"]
+    D --> E["5. terraform plan<br/>review + approval"]
+    E --> F["6. terraform apply<br/>state written to S3,<br/>lock file during run"]

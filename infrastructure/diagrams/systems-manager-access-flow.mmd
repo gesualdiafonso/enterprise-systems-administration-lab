@@ -1,0 +1,23 @@
+%% ============================================================
+%% Systems Manager Access Flow — no inbound SSH/RDP
+%% Project : Enterprise Systems Administration Lab (ESAL)
+%% Version : 1.0.0  |  Status: DRAFT / PROPOSED  |  NOT DEPLOYED
+%% Documented in: docs/cloud/systems-manager.md
+%% Render: npx -p @mermaid-js/mermaid-cli mmdc -i <file>.mmd -o <file>.svg
+%% ============================================================
+sequenceDiagram
+    autonumber
+    participant A as Administrator workstation<br/>(AWS CLI + Session Manager plugin)
+    participant IAM as IAM Identity Center / IAM
+    participant SSM as Systems Manager endpoints<br/>(ssm, ssmmessages, ec2messages)
+    participant AG as SSM Agent on NX-DC01 / NX-LNX01
+
+    AG->>SSM: Outbound HTTPS 443 — register and poll (instance profile credentials)
+    A->>IAM: aws sso login (temporary credentials)
+    A->>SSM: ssm:StartSession (target instance)
+    SSM->>SSM: Authorise against IAM policy
+    SSM-->>AG: Session request via existing agent channel
+    AG->>SSM: Open data channel (outbound HTTPS 443)
+    A->>SSM: Open data channel (HTTPS 443)
+    SSM-->>A: Interactive shell / port forward
+    Note over A,AG: No inbound port is opened on the instance Security Group

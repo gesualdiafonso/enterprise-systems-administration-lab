@@ -1,0 +1,53 @@
+%% ============================================================
+%% AWS Infrastructure Architecture — complete overview
+%% Project : Enterprise Systems Administration Lab (ESAL)
+%% Version : 1.0.0  |  Status: DRAFT / PROPOSED  |  NOT DEPLOYED
+%% Documented in: docs/architecture/infrastructure-diagram.md
+%% Render: npx -p @mermaid-js/mermaid-cli mmdc -i <file>.mmd -o <file>.svg
+%% ============================================================
+flowchart TB
+    %% Administration side
+    subgraph WS["Administration workstations (Windows / macOS)"]
+        CLI["AWS CLI v2 + Session Manager plugin"]
+        TF["Terraform >= 1.11"]
+        GIT["Git → GitHub repository"]
+    end
+
+    subgraph ACCOUNT["AWS account"]
+        IDC["IAM Identity Center<br/>temporary credentials"]
+        IAMROLE["IAM role nexora-ec2-ssm-role<br/>+ instance profile nexora-ec2-ssm-profile"]
+        S3["S3 bucket nexora-tfstate-ACCOUNTID-us-east-1<br/>versioning · encryption · public access block"]
+
+        subgraph REGION["Region us-east-1 (initial target)"]
+            SSM["AWS Systems Manager<br/>Session Manager · Fleet Manager · Run Command"]
+            CW["Amazon CloudWatch<br/>metrics · logs · alarms"]
+
+            subgraph VPC["VPC nexora-vpc — 10.20.0.0/16"]
+                IGW["Internet Gateway<br/>nexora-igw"]
+                RT["Route table nexora-public-rt<br/>0.0.0.0/0 → nexora-igw"]
+
+                subgraph PUB["Public subnet nexora-public-subnet-a — 10.20.1.0/24"]
+                    DC["NX-DC01<br/>Windows Server 2022<br/>AD DS · DNS · GPO<br/>proposed 10.20.1.10<br/>SG nexora-dc-sg"]
+                    LNX["NX-LNX01<br/>Ubuntu Server 24.04 LTS<br/>Nginx · MariaDB · UFW · Fail2ban<br/>proposed 10.20.1.20<br/>SG nexora-lnx-sg"]
+                end
+
+                subgraph PRIV["Private subnet nexora-private-subnet-a — 10.20.2.0/24"]
+                    RES["RESERVED — NOT DEPLOYED"]
+                end
+            end
+        end
+    end
+
+    CLI -->|"aws sso login"| IDC
+    TF -->|"state read/write + lock"| S3
+    TF -->|"create / update resources"| VPC
+    CLI -->|"start-session (HTTPS)"| SSM
+    SSM <-->|"agent channel — outbound HTTPS from instance"| DC
+    SSM <-->|"agent channel — outbound HTTPS from instance"| LNX
+    IAMROLE -.->|"attached to"| DC
+    IAMROLE -.->|"attached to"| LNX
+    DC -->|"CloudWatch agent"| CW
+    LNX -->|"CloudWatch agent"| CW
+    LNX -->|"DNS / Kerberos / LDAP (planned)"| DC
+    PUB --- RT
+    RT --- IGW

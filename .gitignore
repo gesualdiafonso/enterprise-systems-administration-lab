@@ -1,0 +1,170 @@
+# =============================================================================
+# .gitignore — Enterprise Systems Administration Lab (ESAL)
+# -----------------------------------------------------------------------------
+# Purpose : Keep secrets, Terraform state, credentials, local tooling artefacts
+#           and large binaries out of the public GitHub repository.
+# Rule    : When in doubt, ignore the real file and commit a sanitised
+#           "*.example" version instead (e.g. terraform.tfvars.example).
+# Check   : git check-ignore -v <path>   → shows which rule ignores a file
+#           git status --ignored         → lists everything currently ignored
+# Note    : .gitignore does NOT untrack files already committed. If a secret
+#           was committed, rotate it first, then remove it from history.
+# =============================================================================
+
+
+# --- Terraform ---------------------------------------------------------------
+# State files contain resource IDs, IPs and possibly secrets in plain text.
+*.tfstate
+*.tfstate.*
+*.tflock
+# Local provider/module cache, recreated by `terraform init`.
+.terraform/
+# Saved plans can embed sensitive values.
+*.tfplan
+tfplan
+*.plan
+# Variable files hold account-specific values. Commit only *.tfvars.example.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+# Local overrides, CLI config and crash logs.
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+crash.log
+crash.*.log
+# IMPORTANT: .terraform.lock.hcl is intentionally NOT ignored.
+# It pins provider checksums and must be committed.
+
+
+# --- AWS credentials and configuration ---------------------------------------
+.aws/
+credentials
+*.credentials
+aws-exports.*
+# AWS SSO / CLI caches if ever created inside the project folder.
+.aws-sam/
+sso/cache/
+cli/cache/
+
+
+# --- Environment variables ---------------------------------------------------
+.env
+.env.*
+!.env.example
+
+
+# --- Private keys, certificates and key stores -------------------------------
+*.pem
+*.key
+*.ppk
+*.pfx
+*.p12
+*.jks
+*.keystore
+id_rsa
+id_rsa.*
+id_ecdsa
+id_ecdsa.*
+id_ed25519
+id_ed25519.*
+!*.pub.example
+
+
+# --- Windows Server / Active Directory artefacts -----------------------------
+# Exports and backups may contain directory data, hashes or passwords.
+*.bkf
+*.vhd
+*.vhdx
+ntds.dit
+SYSTEM.hiv
+*.dhcpbackup
+dhcp-backup*.xml
+# PowerShell transcripts can capture secrets typed during a session.
+PowerShell_transcript*.txt
+*.transcript.txt
+
+
+# --- Linux / MariaDB artefacts ------------------------------------------------
+# Database dumps may contain real data; keep only sanitised examples.
+*.sql.gz
+*.dump
+dumps/
+!*.example.sql
+
+
+# --- Logs and temporary files ------------------------------------------------
+*.log
+*.tmp
+*.temp
+*.bak
+*.old
+*.swp
+*.swo
+*~
+# Sanitised evidence logs ARE meant to be versioned.
+!evidence/**/*.log
+
+
+# --- Virtual machine images (not used in this project; safety net) ----------
+*.vdi
+*.vbox
+*.vbox-prev
+*.vmdk
+*.vmx
+*.ova
+*.ovf
+*.iso
+*.qcow2
+
+
+# --- Delivery packages ---------------------------------------------------------
+# ZIP packages are delivered outside the repository.
+ESAL-*.zip
+
+
+# --- Python --------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+
+# --- Node.js (e.g. Mermaid CLI used to render diagrams) ----------------------
+node_modules/
+npm-debug.log*
+.npm/
+
+
+# --- Claude Code local settings ----------------------------------------------
+.claude/settings.local.json
+
+
+# --- Operating systems ---------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+# Windows
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+
+# --- Editors and IDEs ----------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.code-workspace
