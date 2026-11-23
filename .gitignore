@@ -27,6 +27,8 @@ tfplan
 *.tfvars
 *.tfvars.json
 !*.tfvars.example
+# Backend partial configuration (contains the account-specific bucket name).
+backend.hcl
 # Local overrides, CLI config and crash logs.
 override.tf
 override.tf.json

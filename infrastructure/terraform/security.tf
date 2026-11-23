@@ -1,10 +1,14 @@
 # -----------------------------------------------------------------------------
-# WIN-005 - Security Group for NX-DC01 (merge into security.tf)
-# * NO inbound rule from the Internet (no RDP 3389, no WinRM, no SSH).
-# * Administration happens through SSM (outbound HTTPS only).
-# * AD/DNS ports are allowed ONLY from the VPC CIDR for future domain members.
-# Note: Amazon DNS (VPC+2), IMDS and Amazon Time Sync traffic are not filtered
-# by security groups.
+# Security groups. Design: docs/networking/security-groups.md
+#
+# WIN-005 - nexora-dc-sg (NX-DC01), merged from day02/security.day02.tf
+#   * NO inbound rule from the Internet (no RDP 3389, no WinRM, no SSH).
+#   * Administration happens through SSM (outbound HTTPS only).
+#   * AD/DNS ports are allowed ONLY from the VPC CIDR for future domain members.
+#
+# Traffic to the Amazon DNS resolver (VPC+2 / 169.254.169.253), IMDS
+# (169.254.169.254) and Amazon Time Sync (169.254.169.123) is not filtered by
+# security groups, so no rules are needed for it.
 # -----------------------------------------------------------------------------
 
 locals {
@@ -27,13 +31,12 @@ locals {
 }
 
 resource "aws_security_group" "dc" {
-  name        = "nexora-dc-sg"
+  name        = "${var.name_prefix}-dc-sg"
   description = "NX-DC01 - no public admin ports; AD services from VPC only"
-  vpc_id      = aws_vpc.nexora.id # <- adapt to the Day 01 VPC resource name
+  vpc_id      = module.network.vpc_id
 
   tags = {
-    Name    = "nexora-dc-sg"
-    Project = var.project_name
+    Name = "${var.name_prefix}-dc-sg"
   }
 }
 
@@ -58,7 +61,6 @@ resource "aws_vpc_security_group_egress_rule" "dc_https" {
   description       = "HTTPS to AWS endpoints and Windows Update"
 }
 
-
 # Outbound HTTP: some Windows Update / CRL / OCSP endpoints still use TCP 80.
 resource "aws_vpc_security_group_egress_rule" "dc_http" {
   security_group_id = aws_security_group.dc.id
@@ -67,6 +69,18 @@ resource "aws_vpc_security_group_egress_rule" "dc_http" {
   from_port         = 80
   to_port           = 80
   description       = "HTTP for Windows Update, CRL and OCSP"
+}
+
+# Windows license activation against the AWS KMS servers (link-local, TCP 1688).
+resource "aws_vpc_security_group_egress_rule" "dc_kms_activation" {
+  for_each = toset(["169.254.169.250/32", "169.254.169.251/32"])
+
+  security_group_id = aws_security_group.dc.id
+  cidr_ipv4         = each.value
+  ip_protocol       = "tcp"
+  from_port         = 1688
+  to_port           = 1688
+  description       = "Windows activation via AWS KMS servers"
 }
 
 # Outbound to the VPC: DC-initiated traffic to future domain members.

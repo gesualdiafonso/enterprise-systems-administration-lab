@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "project_name" {
   description = "Project tag value applied to every resource."
   type        = string
-  default     = "enterprise-systems-administration-lab"
+  default     = "ESAL"
 }
 
 variable "environment" {

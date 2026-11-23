@@ -1,0 +1,10 @@
+# Copy to terraform.tfvars (git-ignored) and adjust only what differs from the defaults.
+
+aws_region        = "us-east-1"
+availability_zone = "us-east-1a"
+
+vpc_cidr            = "10.20.0.0/16"
+public_subnet_cidr  = "10.20.1.0/24"
+private_subnet_cidr = "10.20.2.0/24"
+
+create_private_subnet = false
