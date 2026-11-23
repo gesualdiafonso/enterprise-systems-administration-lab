@@ -71,3 +71,103 @@ variable "create_private_subnet" {
   type        = bool
   default     = false
 }
+
+# -----------------------------------------------------------------------------
+# Day 02 - NX-DC01
+# -----------------------------------------------------------------------------
+
+variable "create_dc" {
+  description = "Create NX-DC01. Keep false until Day 01 is applied and validated (EC2 costs start on creation)."
+  type        = bool
+  default     = false
+}
+
+variable "dc_ami_id" {
+  description = "Pin a specific Windows Server 2022 AMI ID. null = latest from the AWS public SSM parameter."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.dc_ami_id == null || can(regex("^ami-[0-9a-f]{8,17}$", var.dc_ami_id))
+    error_message = "dc_ami_id must look like ami-0123456789abcdef0."
+  }
+}
+
+variable "dc_instance_type" {
+  description = "NX-DC01 instance type. Proposal: 2 vCPU / 4 GiB. Verify AZ offering with day02-preflight.sh."
+  type        = string
+  default     = "t3.medium"
+}
+
+variable "dc_cpu_credits" {
+  description = "Burstable CPU credit mode: unlimited (no throttling, may add charges) or standard (throttles at baseline)."
+  type        = string
+  default     = "unlimited"
+
+  validation {
+    condition     = contains(["standard", "unlimited"], var.dc_cpu_credits)
+    error_message = "dc_cpu_credits must be standard or unlimited."
+  }
+}
+
+variable "dc_root_volume_size_gb" {
+  description = "Root gp3 volume size in GiB (the AMI minimum is 30)."
+  type        = number
+  default     = 50
+
+  validation {
+    condition     = var.dc_root_volume_size_gb >= 30 && var.dc_root_volume_size_gb <= 200
+    error_message = "dc_root_volume_size_gb must be between 30 and 200."
+  }
+}
+
+variable "dc_private_ip" {
+  description = "Fixed private IPv4 of NX-DC01. Must be inside public_subnet_cidr and not one of the 5 AWS-reserved addresses."
+  type        = string
+  default     = "10.20.1.10"
+
+  validation {
+    condition = (
+      can(cidrhost("${var.dc_private_ip}/32", 0)) &&
+      cidrhost("${var.dc_private_ip}/${split("/", var.public_subnet_cidr)[1]}", 0) == cidrhost(var.public_subnet_cidr, 0) &&
+      !contains(
+        [for i in [0, 1, 2, 3, -1] : cidrhost(var.public_subnet_cidr, i)],
+        var.dc_private_ip
+      )
+    )
+    error_message = "dc_private_ip must be a usable address inside public_subnet_cidr (not .0-.3 or the broadcast address)."
+  }
+}
+
+variable "dc_termination_protection" {
+  description = "Enable EC2 termination protection on NX-DC01."
+  type        = bool
+  default     = true
+}
+
+# -----------------------------------------------------------------------------
+# Day 02 - Active Directory DNS / VPC DHCP option set
+# -----------------------------------------------------------------------------
+
+variable "ad_domain_name" {
+  description = "Active Directory DNS domain."
+  type        = string
+  default     = "nexora.local"
+}
+
+variable "enable_ad_dhcp_options" {
+  description = "Associate the nexora.local DHCP option set with the VPC. Enable ONLY after NX-DC01 DNS is healthy."
+  type        = bool
+  default     = false
+}
+
+variable "dhcp_dns_servers" {
+  description = "DNS servers in the option set. null = [dc_private_ip, VPC resolver (VPC base + 2)]."
+  type        = list(string)
+  default     = null
+
+  validation {
+    condition     = var.dhcp_dns_servers == null || (length(var.dhcp_dns_servers) >= 1 && length(var.dhcp_dns_servers) <= 4)
+    error_message = "A DHCP option set accepts between 1 and 4 DNS servers."
+  }
+}
