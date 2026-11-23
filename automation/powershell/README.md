@@ -4,7 +4,7 @@ Scripts that build and administer the Domain Controller **NX-DC01**. They run **
 as `SYSTEM` through **AWS Systems Manager Run Command**. They are launched from the workstation;
 no RDP, WinRM or SSH port is opened.
 
-> Status: written and checked offline (Bash syntax, payload round-trip). **Not yet executed
+> Status: written and checked offline (Bash syntax, gzip/base64 payload round-trip, ASCII-only). **Not yet executed
 > on AWS.** PowerShell syntax has not been analysed with PSScriptAnalyzer yet.
 
 ## Layout
@@ -16,9 +16,9 @@ automation/
 │   ├── run-dc-script.sh        # copies lib + config + script to C:\Nexora and runs it via SSM
 │   └── day02-preflight.sh      # read-only checks before creating NX-DC01
 └── powershell/
-    ├── config/nexora-ad.psd1   # single source of truth: domain, OUs, groups, users (fictional)
+    ├── config/nexora-ad.psd1   # single source of truth: domain, OUs, groups, users (fictional), DNS, GPO values
     ├── lib/NexoraLab.psm1      # logging, config, SSM secrets, AD wait helpers
-    └── scripts/                # numbered, idempotent steps
+    └── scripts/                # 01-09 build steps (idempotent), 20-25 read-only reports
 ```
 
 ## Secrets
@@ -51,6 +51,43 @@ allows `ssm:GetParameter`; the AWS managed key `aws/ssm` allows decryption throu
 | 6 | `./automation/aws-cli/run-dc-script.sh 05-New-ADUsers.ps1` | AD-005, `adm-` accounts | - |
 | 7 | `./automation/aws-cli/run-dc-script.sh 06-New-ADServiceAccounts.ps1` | AD-007 | - |
 | 8 | `./automation/aws-cli/run-dc-script.sh 07-Set-ADDelegation.ps1` | AD-008 (help-desk delegation) | - |
+| 9 | `./automation/aws-cli/run-dc-script.sh 08-Set-DnsConfiguration.ps1` | DNS-001..004: zones, reverse zone, A/CNAME/PTR, forwarders | - |
+| 10 | `./automation/aws-cli/run-dc-script.sh 09-Set-GroupPolicies.ps1` | GPO-001..005 (table below) | - |
+| 11 | `terraform apply` with `enable_ad_dhcp_options = true` | DHCP-001..003 (only after 24-Test-NxDns passes) | Renew leases |
+
+## Query and report scripts (Part F, read-only)
+
+| Script | Purpose | Useful arguments |
+|---|---|---|
+| `20-Get-NxUsers.ps1` | Users, state, groups; acceptance checks (15 users, Domain Admins, `CN=Users`) | `-Department Finance`, `-Identity mgomes` |
+| `21-Get-NxGroups.ps1` | Groups, scope, nesting, effective members; privileged groups | `-Name DL-FS-Finance-RW` |
+| `22-Get-NxDomainHealth.ps1` | **AD-009** health report: services, SYSVOL, dcdiag, SRV, time, event errors | `-EventHours 48` |
+| `23-Get-NxGpoReport.ps1` | **GPO-006** evidence: links, policies in force, auditpol, firewall, gpresult; HTML reports | - |
+| `24-Test-NxDns.ps1` | Zones, forwarders, DNS client, PASS/FAIL resolution tests | - |
+| `25-Export-NxADInventory.ps1` | CSV + JSON inventory of OUs, users, groups, memberships, GPOs, DNS | - |
+
+Reports are written to `C:\Nexora\reports\<yyyyMMdd>\` on NX-DC01 (open them through Fleet Manager).
+
+## Group Policy implemented by `09`
+
+| GPO | Linked to | Settings |
+|---|---|---|
+| Default Domain Policy (edited) | `nexora.local` | Password: min 14, complexity, history 24, min age 1, no max age. Lockout: 10 attempts / 15 min |
+| FGPP `NX-PSO-Admins` | `GG-Admin-Accounts` | Min 16, lockout 5 / 30 min, max age 365 days |
+| `NX-DC-Audit-Policy` | `OU=Domain Controllers` | Advanced audit (8 subcategories), subcategory override, Security log 512 MB |
+| `NX-Baseline-Security` | `OU=Nexora` (Enforced) + `OU=Domain Controllers` | Firewall on/Block inbound/log drops, SMBv1 off, logon banner |
+| `NX-Servers-Admins` | `OU=Servers` | `GG-IT-ServerAdmins` added to local Administrators (Restricted Groups, MemberOf) |
+| `NX-ServiceAccounts-Restrictions` | `OU=Domain Controllers` + `OU=Servers` | `GG-Service-Accounts` denied local and RDP logon |
+| `NX-Users-Desktop` | Department OUs | Password-protected screen saver after 15 min |
+
+Deviations from `docs/networking/gpo-policies.md`:
+
+- `NX-Baseline-Security` is also linked to `OU=Domain Controllers`. There are no member computers yet,
+  so the DC is the only machine that can produce evidence (`gpresult`).
+- `NX-ServiceAccounts-Restrictions` is linked to **computer** OUs. User Rights Assignment is a computer
+  setting; linked to `OU=Service Accounts`, which contains only users, it would never apply.
+- Maximum password age: **0 (no forced expiry)**, following the Microsoft security baseline and NIST
+  SP 800-63B. Privileged `adm-` accounts still expire after 365 days through the FGPP.
 
 Windows Update (AWS-managed document):
 

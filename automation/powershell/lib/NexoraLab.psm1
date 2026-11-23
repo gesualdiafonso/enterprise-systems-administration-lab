@@ -165,5 +165,29 @@ function Get-NxOuPath {
     "OU=$Name,$root"
 }
 
+function Write-NxTable {
+    <# Prints objects as a table to the host (captured by SSM) and to the log file. #>
+    param(
+        [Parameter(Mandatory, ValueFromPipeline)][AllowNull()][object]$InputObject,
+        [string[]]$Property
+    )
+    begin { $rows = New-Object System.Collections.Generic.List[object] }
+    process { if ($null -ne $InputObject) { $rows.Add($InputObject) } }
+    end {
+        if ($rows.Count -eq 0) { Write-NxLog -Message '(no rows)'; return }
+        $text = if ($Property) { $rows | Format-Table -Property $Property -AutoSize | Out-String -Width 250 }
+        else { $rows | Format-Table -AutoSize | Out-String -Width 250 }
+        Write-Host $text.TrimEnd()
+        if ($script:NxLogFile) { Add-Content -Path $script:NxLogFile -Value $text -Encoding UTF8 }
+    }
+}
+
+function Get-NxReportDir {
+    $dir = Join-Path $script:NxRoot ('reports\' + (Get-Date -Format 'yyyyMMdd'))
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    $dir
+}
+
 Export-ModuleMember -Function Write-NxLog, Start-NxLog, Import-NxConfig, Get-NxRegion, Get-NxSecret,
-New-NxRandomPassword, Assert-NxAdministrator, Test-NxDomainController, Wait-NxActiveDirectory, Get-NxOuPath
+New-NxRandomPassword, Assert-NxAdministrator, Test-NxDomainController, Wait-NxActiveDirectory, Get-NxOuPath,
+Write-NxTable, Get-NxReportDir

@@ -4,7 +4,7 @@
 # scripts on NX-DC01 through SSM Run Command (AWS-RunPowerShellScript).
 #
 # The library, the config file and the script are copied to C:\Nexora on the
-# instance (base64 inside the command), then the script is executed as SYSTEM.
+# instance (gzip + base64 inside the command), then the script is executed as SYSTEM.
 # If the script exits 3010, the SSM Agent reboots the instance and runs the
 # command again; this wrapper keeps waiting until the final status.
 #
@@ -30,7 +30,8 @@ SCRIPT_PATH="$PS_ROOT/scripts/$SCRIPT_NAME"
 [[ -f "$SCRIPT_PATH" ]] || { echo "Script not found: $SCRIPT_PATH" >&2; exit 2; }
 for t in aws jq base64; do command -v "$t" >/dev/null || { echo "$t not found" >&2; exit 1; }; done
 
-b64() { base64 < "$1" | tr -d '\n'; }
+# gzip + base64 keeps the command small (SSM limits the size of command parameters).
+b64() { gzip -9 -n -c < "$1" | base64 | tr -d '\n'; }
 
 # PowerShell payload: stage files under C:\Nexora, run the script, propagate exit code.
 PAYLOAD="$(cat <<EOF
@@ -44,7 +45,11 @@ PAYLOAD="$(cat <<EOF
 foreach (\$k in \$files.Keys) {
   \$p = Join-Path \$root \$k
   New-Item -ItemType Directory -Force -Path (Split-Path \$p) | Out-Null
-  [IO.File]::WriteAllBytes(\$p, [Convert]::FromBase64String(\$files[\$k]))
+  \$in = New-Object IO.MemoryStream(,[Convert]::FromBase64String(\$files[\$k]))
+  \$gz = New-Object IO.Compression.GZipStream(\$in, [IO.Compression.CompressionMode]::Decompress)
+  \$out = New-Object IO.MemoryStream
+  \$gz.CopyTo(\$out); \$gz.Dispose()
+  [IO.File]::WriteAllBytes(\$p, \$out.ToArray())
 }
 & (Join-Path \$root 'scripts\\$SCRIPT_NAME') $SCRIPT_ARGS
 exit \$LASTEXITCODE

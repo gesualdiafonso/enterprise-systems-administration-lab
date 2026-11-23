@@ -58,6 +58,8 @@
         @{ Name = 'GG-Operations-Users';     Scope = 'Global';      Description = 'Operations department role';     MemberOf = @('GG-Nexora-AllStaff') }
         @{ Name = 'GG-IT-HelpDesk';          Scope = 'Global';      Description = 'Delegated password reset / unlock on department OUs'; MemberOf = @() }
         @{ Name = 'GG-IT-ServerAdmins';      Scope = 'Global';      Description = 'Local administrators on member servers (via GPO)';     MemberOf = @() }
+        @{ Name = 'GG-Admin-Accounts';       Scope = 'Global';      Description = 'All adm- accounts (target of FGPP NX-PSO-Admins)';      MemberOf = @() }
+        @{ Name = 'GG-Service-Accounts';     Scope = 'Global';      Description = 'All svc- accounts (denied interactive/RDP logon by GPO)'; MemberOf = @() }
         @{ Name = 'DL-FS-Finance-RW';        Scope = 'DomainLocal'; Description = 'Example resource permission: Finance share modify'; MemberOf = @() }
         @{ Name = 'DL-FS-HR-RW';             Scope = 'DomainLocal'; Description = 'Example resource permission: HR share modify';      MemberOf = @() }
     )
@@ -84,14 +86,58 @@
 
     # Privileged identities: separate adm- accounts, never used for daily work.
     AdminAccounts = @(
-        @{ Sam = 'adm-alopes'; Owner = 'alopes'; Ou = 'IT'; Groups = @('Domain Admins') }
-        @{ Sam = 'adm-breis';  Owner = 'breis';  Ou = 'IT'; Groups = @('GG-IT-ServerAdmins') }
+        @{ Sam = 'adm-alopes'; Owner = 'alopes'; Ou = 'IT'; Groups = @('Domain Admins', 'GG-Admin-Accounts') }
+        @{ Sam = 'adm-breis';  Owner = 'breis';  Ou = 'IT'; Groups = @('GG-IT-ServerAdmins', 'GG-Admin-Accounts') }
     )
 
     # Service accounts: long random password generated on the DC and never
     # displayed (reset it when a real service is configured), or gMSA later.
     ServiceAccounts = @(
-        @{ Sam = 'svc-backup';     Owner = 'alopes'; Description = 'Backup jobs (Day 06) - owner: alopes' }
-        @{ Sam = 'svc-monitoring'; Owner = 'breis';  Description = 'Monitoring queries (Day 06) - owner: breis' }
+        @{ Sam = 'svc-backup';     Owner = 'alopes'; Description = 'Backup jobs (Day 06) - owner: alopes';      Groups = @('GG-Service-Accounts') }
+        @{ Sam = 'svc-monitoring'; Owner = 'breis';  Description = 'Monitoring queries (Day 06) - owner: breis'; Groups = @('GG-Service-Accounts') }
     )
+
+    # DNS-001..004 (docs/networking/dns.md sections 6-8)
+    Dns = @{
+        ReverseZoneNetworkId = '10.20.1.0/24'           # -> 1.20.10.in-addr.arpa
+        ReplicationScope     = 'Domain'                 # all DNS servers in the domain
+        Forwarders           = @('10.20.0.2')           # Amazon-provided resolver
+        ARecords = @(
+            # nx-dc01 is registered automatically by the DC itself.
+            @{ Name = 'nx-lnx01'; IPv4 = '10.20.1.20'; CreatePtr = $true }   # Ubuntu server (Day 04)
+        )
+        CnameRecords = @(
+            @{ Name = 'intranet'; Target = 'nx-lnx01.nexora.local' }
+        )
+    }
+
+    # GPO-001..005 (docs/networking/gpo-policies.md). Reviewed values.
+    GroupPolicy = @{
+        Password = @{
+            MinimumPasswordLength = 14
+            PasswordComplexity    = 1
+            MaximumPasswordAge    = 0      # no forced expiry (Microsoft baseline / NIST 800-63B)
+            MinimumPasswordAge    = 1
+            PasswordHistorySize   = 24
+            ClearTextPassword     = 0      # reversible encryption: disabled
+        }
+        Lockout = @{
+            LockoutBadCount   = 10
+            LockoutDuration   = 15         # minutes
+            ResetLockoutCount = 15         # minutes
+        }
+        AdminPso = @{
+            Name                 = 'NX-PSO-Admins'
+            Precedence           = 10
+            AppliesTo            = 'GG-Admin-Accounts'
+            MinPasswordLength    = 16
+            PasswordHistoryCount = 24
+            LockoutThreshold     = 5
+            LockoutDurationMin   = 30
+        }
+        SecurityEventLogMaxKB = 524288     # 512 MB (root volume is 50 GiB)
+        ScreenSaverTimeoutSec = 900
+        LogonBannerTitle      = 'Nexora Technologies - Authorised use only'
+        LogonBannerText       = 'This system is for authorised Nexora Technologies lab use only. Activity is logged and monitored.'
+    }
 }

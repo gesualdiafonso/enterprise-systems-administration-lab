@@ -44,6 +44,13 @@ foreach ($s in $cfg.ServiceAccounts) {
         Write-NxLog -Level OK -Message "Exists  : $sam"
     }
 
+    foreach ($group in @($s.Groups)) {
+        if (-not (Get-ADGroupMember -Identity $group | Where-Object SamAccountName -EQ $sam)) {
+            Add-ADGroupMember -Identity $group -Members $sam
+            Write-NxLog -Level OK -Message "  + $sam -> $group"
+        }
+    }
+
     $memberOf = @(Get-ADPrincipalGroupMembership -Identity $sam | Select-Object -ExpandProperty Name)
     $bad = @($memberOf | Where-Object { $privileged -contains $_ })
     if ($bad.Count -gt 0) { Write-NxLog -Level ERROR -Message "$sam is in privileged group(s): $($bad -join ', ')" }
