@@ -83,6 +83,21 @@ resource "aws_vpc_security_group_egress_rule" "dc_kms_activation" {
   description       = "Windows activation via AWS KMS servers"
 }
 
+# Outbound DNS: safety net for the DC's DNS server. The primary path is the
+# forwarder to the VPC resolver (10.20.0.2, not filtered by SGs); if it fails,
+# Windows DNS falls back to root hints, which need TCP/UDP 53 to the Internet.
+# Without a working resolver the SSM Agent cannot reach its endpoints.
+resource "aws_vpc_security_group_egress_rule" "dc_dns" {
+  for_each = toset(["udp", "tcp"])
+
+  security_group_id = aws_security_group.dc.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = each.value
+  from_port         = 53
+  to_port           = 53
+  description       = "DNS root hints fallback (${upper(each.value)})"
+}
+
 # Outbound to the VPC: DC-initiated traffic to future domain members.
 resource "aws_vpc_security_group_egress_rule" "dc_vpc" {
   security_group_id = aws_security_group.dc.id
